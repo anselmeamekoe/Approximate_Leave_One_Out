@@ -1,3 +1,5 @@
+# Approximate_Leave_One_Out
+
 This repo contains the R codes and the report of the research internship I did for a period of 4 months for the validation of my Master 1 in Statistics and Data Sciences (SSD).
 This internship was supervised: 
 - Sana Louhichi : University Professor at Grenoble Alpes University and Researcher at the Jean Kuntzmann Laboratory (CNRS)
@@ -6,6 +8,8 @@ This internship was supervised:
 
 The theme of this internship is : CHOICE OF PENALISATION PARAMETER IN GENERALISED LINEAR MODELS  IN HIGH DIMENSION
 
+
+## Absract
 Model selection or validation in statistical learning is usually based on the ability to modeling for reasons of data interpretation or model prediction accuracy
 in competition. With regard to prediction, it is important to make an error estimate for
 future data. For penalized regressions such as LASSO, Ridge and Elastic-net, the estimation
