@@ -1,0 +1,304 @@
+---
+title: "Comparaison de l'estimation de coef avec la pénalisation de schmidt et celle du lasso glmnet"
+author: "AMEKOE Kodjo Mawuena"
+date: "07/07/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Déjà donné dans la partie précédente 
+```{r}
+# function_schmidtNew = function(alpha, beta){
+#   expOfalphaXbeta  = exp(alpha*beta)
+#   (1/alpha)*(log(1+expOfalphaXbeta)+log(1+(1/expOfalphaXbeta)))
+# }
+```
+
+
+```{r}
+library(glmnet)
+# le code de la fonction function_schmidtNew est donné 
+# en haut, ici on l'appelle juste
+
+# on modifie la composante de gradient 
+# pour éviter les instabilités numériques
+# dans le cas où le produit de alpha et beta est
+# plus grand que 10 en valeur absolue, on prend 
+# juste son signe.
+functionComponentOfGradient=function(alphabetai){
+if (abs(alphabetai)<10) {
+  expalphabetai  = exp(alphabetai)
+(expalphabetai-1/expalphabetai)/(expalphabetai+1/expalphabetai+2)
+}
+else sign(alphabetai)}
+
+# la dérivée de l'approximation de Schmidt, 
+# étant donnée un vecteur.
+function_schmidt_primeNEW= function(alpha,beta){
+  alphabeta = alpha *beta
+  sapply(alphabeta,functionComponentOfGradient)
+}
+
+# dérivée seconde de l'approximation de schmidt
+# on fixe par défaut la valeur minimale de 
+# cette dérivée seconde à lowerBound pour éviter 
+# les instabilités
+function_schmidt_secondeNEWnew = function(alpha,beta,lowerBound){
+expOfalphaXbeta  = exp(alpha*beta)
+tempValue = ( 2*alpha )/( (expOfalphaXbeta+(1/expOfalphaXbeta)+2) )
+pmax( tempValue,rep( lowerBound,length(tempValue) ) )
+}
+
+# critère de moindre carré ordinaire
+F_ols = function(X,y,beta,lambda,alpha){
+ 0.5*( sum( (y-X%*%beta)^2) ) + lambda*sum(function_schmidtNew(alpha , beta))
+}
+
+
+# cette fonction permet d'estimer les coefficients de regréssion
+# linéaire avec la pénalisation de Schmidt.
+# ce programme ne donne pas l'intercept
+# verbose est booléen qui permet d'afficher les messages 
+# lors des itérations 
+estimate_schmidt_Damped_ols_2NEWNEWNEWnew = function(X,
+                                                     y,
+                                                     alpha,
+                                                     lambda,
+                                                     nbOfIterationsMax=100,
+                                                     tolerance=10^(-4),
+                                                     betaStart=matrix(0,ncol(X),1),
+                                                     lowerBound=0.0001,
+                                                     verbose=FALSE){
+# Nous initialisons tous les coefficients à zéro
+beta_vector = betaStart
+
+# à la sortie les coefficients estimés auront les noms des variables s'il y a en 
+rownames(beta_vector) = colnames(X) 
+tXX = crossprod(X)
+tXy = crossprod(X,y)
+# gradient 
+grad = ( tXX%*%beta_vector - tXy ) +
+      lambda*function_schmidt_primeNEW(alpha,beta_vector)
+
+# Pour compter le nombre d'itération qui sera effectué
+k = 0 
+
+# nous cherchons une précision de 10^(-4) tant que c'est pas attend, on continue
+# pour voir la valeur de i pris à chaque itération k pour la recherche
+#de direction, voir l'explication de la méthode Damped-Newton
+I = c()
+
+repeat{
+  
+  # on fait une copie de l'ancienne estimation ou de l'estimation de démarrage 
+  beta_vector_old = beta_vector
+  
+  # on recalcule le gradient de nouveau
+  grad  = ( tXX%*%beta_vector - tXy )+
+             lambda*function_schmidt_primeNEW(alpha,beta_vector)
+            
+  
+  # la matrice hessienne précédée du signe -
+  correctionOftXX  = lambda* 
+                     function_schmidt_secondeNEWnew(alpha,beta_vector,lowerBound=lowerBound)
+  hessian = tXX + diag(as.vector(correctionOftXX))
+  if(verbose==TRUE) cat("\n min of diag of correction of t(X)%*%X=", min(correctionOftXX),"\n")
+  
+  # la direction
+  #if(verbose==TRUE) cat("\n Hessian=", hessian,"\n")
+  
+  # factorisation de Cholesky pour la matrice hessian
+  # qui doit être symétrique et définie positive
+  Uprov = chol(hessian)
+  #if(verbose==TRUE) cat("\n Uprov=", Uprov,"\n")
+  
+  search_direction =  - backsolve(Uprov, backsolve(Uprov, grad, transpose = TRUE))
+  
+  # partie Damped
+  
+  i = 0 
+  imax = 4
+  # while(  norm( grad+(1/2^i)*search_direction,"2" ) >= norm(grad,"2")){
+  #   i = i+1
+  #   
+  # }
+  if(verbose == TRUE){
+      cat("\n i= ",i,
+          " new Newton-val de F=", F_ols(X,y,beta_vector+search_direction,lambda,alpha) ,"\n"
+          )
+  }
+  # on va augmenter i jusqu'à ce que la valeur prise par la
+  #fonction à minimiser diminue par rapport à la précédente. 
+  # on fixe imax à 4 pour l'instant : 
+  F_olsOFbetaOLD = F_ols(X,y,beta_vector_old,lambda,alpha)
+  i = 0
+  repeat{
+    F_olsOfbetaCandidate = F_ols(X,y,beta_vector+(1/2^i)*search_direction,lambda,alpha)
+    if(F_olsOfbetaCandidate < F_olsOFbetaOLD)  break
+    if (i==imax)  break
+    i= i+1
+  }
+  # on retient la valeur i qui a été utilisée pour réduire la valeur  
+  #de la fonction objectif.
+  I = c(I,i)
+  # le nouveau vecteur beta obtenu:
+  beta_vector = beta_vector_old + (1/2^i)*search_direction
+  
+  k = k+1
+  
+  # condition d'arrêt
+  # si on atteint la précision tolerance , s'arrête
+  norm_relative = norm(beta_vector - beta_vector_old, "2")/norm(beta_vector,"2")
+  if(norm(grad,"2") < tolerance & norm_relative < tolerance){break}
+  
+  # si on dépasse le nombre maximal  d'itération, on s'arrête
+  if(k > nbOfIterationsMax){
+    cat("\n L'algorithme n'a pas convergé avec ",nbOfIterationsMax, " itération(s)\n")
+    break
+  }
+}
+# on retoure le résultat sous forme d'une list
+return(list(beta_vector=beta_vector,k=k,I=I))
+}
+
+# Les données de la première FIGURE
+set.seed(0)
+p              =     1000
+n              =     250
+k              =     50
+beta.star      =     rep(0, p)
+beta.star[1:k] =     sqrt(5*10/9)/sqrt(k)
+o              =     sqrt(2)
+X_fig1              =     matrix(rnorm(n*p, mean = 0, sd = 1), ncol = p, nrow = n)
+e              =     rnorm(n, mean = 0, sd = o)
+y_fig1             =     X_fig1 %*% beta.star + e
+
+# on estime donc les coefficients:
+# pour le glmnet 
+fit_fig1_glmnet = glmnet(X_fig1,y_fig1,intercept = FALSE,lambda = 30/n,standardize = FALSE)
+
+# pour notre fonction 
+fits_fig1_glmnet = list()
+beta_vectors = list()
+
+# on considère donc plusieurs valeurs de alpha
+# hyperamètre de la pénalisation de Schmidt
+alphas = c(15,25,50,65,150,200,250,400,600,1000)
+
+# MAE Mean Absolute Error
+# Sur le figure nous l'appelons 
+# plutôt AAE: Average Absolute Error
+MAE_Damped_glmnet = rep(0,length(alphas))
+MSE_Damped_glmnet = rep(0,length(alphas))
+MAE_Damped_star = rep(0,length(alphas))
+MSE_Damped_star = rep(0,length(alphas))
+
+for(i in 1:length(alphas)){
+  print(i)
+  # on essaye de construire d'estimer les coefficients
+  # si cela ne marque pas toutes les sorties sont
+  # fixées à zéro
+  fits_fig1_glmnet[[i]] = try(estimate_schmidt_Damped_ols_2NEWNEWNEWnew(X_fig1,y_fig1,
+                                                         alpha = alphas[i],
+                                                         lambda = 30,
+                                                         nbOfIterationsMax=200,
+                                                         tolerance=10^(-4),
+                                                         lowerBound=0.001,
+                                                         verbose = FALSE),
+                              silent = TRUE
+                              )
+
+  if(!inherits(fits_fig1_glmnet[[i]], "try-error")){
+    beta_vectors[[i]] = fits_fig1_glmnet[[i]]$beta_vector
+
+    # Damped vs glmnet
+
+    MAE_Damped_glmnet[i] = mean( abs(beta_vectors[[i]] - coef(fit_fig1_glmnet)[2:1001]) )
+    MSE_Damped_glmnet[i] = mean( (beta_vectors[[i]]- coef(fit_fig1_glmnet)[2:1001]   )^2 )
+
+    # Damped vs beta_star
+    MAE_Damped_star[i] = mean( abs(beta_vectors[[i]] - beta.star) )
+    MSE_Damped_star[i] = mean( (beta_vectors[[i]]- beta.star  )^2 )
+
+
+  }
+  else{
+    MAE_Damped_glmnet[i] = 0
+    MSE_Damped_glmnet[i] = 0
+
+
+    MAE_Damped_star[i] = 0
+    MSE_Damped_star[i] = 0
+
+
+  }
+  
+
+
+}
+
+# ces deux quantités sont uniques car dépendent pas de alpha
+MAE_glmnet_star =  mean( abs(coef(fit_fig1_glmnet)[2:1001]-beta.star) )
+MSE_glmnet_star =  mean( (coef(fit_fig1_glmnet)[2:1001]-beta.star )^2 )
+
+
+result_alpha = data.frame(alphas,MAE_Damped_glmnet,MSE_Damped_glmnet,
+                          MAE_Damped_star,MSE_Damped_star,
+                          MAE_glmnet_star,MSE_glmnet_star
+                          )
+
+
+
+# graphe (a)
+#png("Schmidt_vs_glmenetlasso_AAE.png")
+plot(alphas,log10(result_alpha$MAE_Damped_star),
+     col = 2,
+     main = "AAE",
+     xlab = expression(alpha),
+     ylim = c(-2,-1),
+     ylab = "log10(Error)"
+     )
+
+points(alphas,
+       log10(result_alpha$MAE_glmnet_star),
+       col = 1
+       )
+legend("topright", c("Schmidt","glmnet"), lty=1:1, col=c(2, 1))
+
+# graphe (b)
+
+#png("Schmidt_vs_glmenetlasso_ASE.png")
+plot(alphas,
+     log10(result_alpha$MSE_Damped_star),
+     col = 2,
+     main = "ASE",
+     xlab = expression(alpha),
+     ylab = "log10(Error)"
+     )
+points(alphas,log10(result_alpha$MSE_glmnet_star),col = 1)
+legend("topright", c( "Schmidt","glmnet"), lty=1:1, col=c(2, 1))
+```
+
+
+
+
+
+
+```{r}
+#knitr::kable(result_alpha)
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+
+
+```

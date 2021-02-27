@@ -1,0 +1,182 @@
+---
+title: "Code figure 3"
+author: "AMEKOE Kodjo Mawuena"
+date: "01/07/2020"
+output: html_document
+---
+
+```{r}
+rm(list = ls()) 
+library(ggplot2)
+library(class)
+library(dplyr) 
+library(gridExtra) 
+library(glmnet) 
+#avec glmnet on peut construire les matrices  creuses (sparse)
+
+# initialisation 10000
+rho = 0.2 # 1/5 
+delta  = 0.2 # rapport entre p et n
+p = 10000
+n = p*delta
+k = n*rho  
+m = 30 # on prend 30 valeurs de lambda 
+
+# on génère les données suivant différentes structure.
+# de corrélation.Ici nous utilisons le spike :
+
+design_distribution = "spike"
+
+if(design_distribution == "spike"){
+    a_             =    0.3  # corrélation 
+     
+    # matrice de corrélation
+    C              =    diag( rep(1-a_,p)) + matrix(a_,p,p )
+    row_           =    c(1:p, 1:p)
+    column_        =    c(1:p, rep(p+1, p))
+    elmts          =    c(rep(sqrt(1-a_), p), rep(sqrt(a_), p))
+    
+    F_             =    sparseMatrix(i = row_, j = column_, x = elmts)
+    
+    # on a alors C =    F_%*%t(F_)
+}
+if(design_distribution == "iid"){
+    C            =    diag(rep(1,p))
+    F_           =    diag(rep(1,p))
+   
+}
+set.seed(0)
+X              =     F_ %*% matrix(rnorm( n*ncol(F_), mean = 0, sd = 1 ),
+                                   nrow = ncol(F_), ncol = n
+                                   ) # matrice (p, n)
+X              =     t(X)
+#snr           =      1
+o              =     1 #écart type sigma
+beta           =      rep(0,p)
+beta[1:k]      = 1    # les coefficients non nuls 
+#sont au nombre de k et sont fixés à 1
+
+# normalisation des données utilisées 
+scaler         = ( t(beta)%*%C )%*% beta /o^2
+scaler         = as.vector(scaler) # pour avoir un réel 
+#et non une matrice (1,1) 
+ 
+X              = X / sqrt(scaler)
+F_             = F_ / sqrt(scaler)
+C              = C / (scaler)
+
+Xb             = X%*%beta
+y              = Xb + rnorm(n, mean = 0 , sd = o)
+# choix des valeurs possibles de lambdas 
+# le nombre maximale de coef non nuls est n*0.65
+fit = glmnet(X , y , dfmax = floor(n*0.65))
+
+lambda = fit$lambda
+lambda_min = min(lambda)
+lambda_max = max(lambda)
+
+
+lambda  = seq(log10(lambda_min),log10(lambda_max), length.out  = m)
+lambda  = 10^(lambda)
+
+# entrainement du modèle maintenant :
+fit  = glmnet(X , y , lambda = lambda)
+lambda = fit$lambda
+a0 = fit$a0
+B  = fit$beta
+df = fit$df
+cat(sprintf(" lambda min = %0.3f |  lambda max = %0.3f \n",
+            min(lambda), max(lambda)) 
+    )
+Err_extra  = rep(0, m)
+ALO = rep(0,m)
+
+for(i in 1:m){
+  if( df[i]>0){
+    S = which(B[,i] != 0)
+    XS = as.matrix(X[,S])
+    beta_hatS = B[S,i]
+    y_hat = XS%*%beta_hatS + a0[i]
+    dh = diag( XS%*%(solve(crossprod(XS)) )%*% t(XS) )
+    
+    ALO[i] = mean( ((y-y_hat)/(1-dh))^2 )
+    
+    beta_hat = B[,i]
+    Err_extra[i]  = o^2  + 
+                    t ( (beta- beta_hat) )%*%( C%*% (beta- beta_hat) )
+    r  = y - y_hat
+  }
+  
+  cat(sprintf(" itération = %d |  df = %d | n = %d| lambda = %0.3f\n",
+              i,df[i] , n, lambda[i]) 
+      )
+}
+
+data_fig3 = data.frame( method = c( rep("Err_extra", m), rep("ALO", m)  ),
+                        lambda = c( lambda, lambda),
+                        Error = c(Err_extra, ALO)
+                      )
+
+#write.table(data_fig3, "data_fig3.txt", sep="\t")
+#data_fig3          =     read.table("data_fig3.txt")
+fig3_plot = ggplot( data = data_fig3, aes(x = lambda,
+                                          y = Error ,
+                                          color = method
+                                          )
+                    ) + 
+            geom_line(size = 0.8)
+
+fig3_plot = fig3_plot + scale_x_log10( )
+
+fig3_plot = fig3_plot + 
+            theme(legend.text = element_text(colour="black",
+                                             size=12,
+                                             face="bold",
+                                             family = "Courier"
+                                             )
+                  )
+
+# l'ordre d'apparition des catégories dans la légende
+fig3_plot = fig3_plot + 
+            scale_color_discrete( breaks = c("Err_extra", "ALO") ) 
+
+
+fig3_plot = fig3_plot + 
+            theme( axis.title.x = element_text( size = 16) )
+
+fig3_plot = fig3_plot + 
+            theme( axis.title.y = element_text( size = 16 ,
+                                                face = "bold" ,
+                                                family = "Courier"
+                                                ) 
+                   ) # face peut etre italic, bold
+
+fig3_plot = fig3_plot + xlab(expression(lambda)) +
+            ylab("Prediction Error")
+
+fig3_plot = fig3_plot + ggtitle( "p = 10000 , n = 2000")
+
+fig3_plot = fig3_plot + theme(plot.title =  element_text(hjust = 0.5))
+
+
+fig3_plot
+#ggsave("fig3.pdf",fig3_plot)
+```
+
+
+
+
+
+```{r}
+# plot(lambda, Err_extra)
+# points(lambda, ALO, col = 2 )
+```
+
+
+
+
+```{r}
+
+#(data_fig3[data_fig3$method == "Err_extra","Error"]< data_fig3[data_fig3$method == "ALO","Error"])
+```
+
