@@ -1,10 +1,12 @@
 # Approximate_Leave_One_Out
 This repo contains the R codes and the report of the research internship I did for a period of 4 months for the validation of my Master 1 in Statistics and Data Sciences (SSD). This internship was supervised:
 
-Sana Louhichi : University Professor at Grenoble Alpes University and Researcher at the Jean Kuntzmann Laboratory (CNRS)
-Didier A. Girard : Senior Researcher at Laboratory Jean Kuntzmann (CNRS)
-Karim Benhenni : Associate Professor at Grenoble Alpes University and Researcher at the Jean Kuntzmann Laboratory (CNRS)
-The theme of this internship is : CHOICE OF PENALISATION PARAMETER IN GENERALISED LINEAR MODELS IN HIGH DIMENSION
+- Sana Louhichi : University Professor at Grenoble Alpes University and Researcher at the Jean Kuntzmann Laboratory (CNRS)
+- Didier A. Girard : Senior Researcher at Laboratory Jean Kuntzmann (CNRS)
+- Karim Benhenni : Associate Professor at Grenoble Alpes University and Researcher at the Jean Kuntzmann Laboratory (CNRS)
+The theme of this internship is : 
+
+## CHOICE OF PENALISATION PARAMETER IN GENERALISED LINEAR MODELS IN HIGH DIMENSION
 
 ## Abstract
 
