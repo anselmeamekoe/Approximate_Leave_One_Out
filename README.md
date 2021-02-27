@@ -9,7 +9,7 @@ This internship was supervised:
 The theme of this internship is : CHOICE OF PENALISATION PARAMETER IN GENERALISED LINEAR MODELS  IN HIGH DIMENSION
 
 
-## Absract
+##  Abstract
 Model selection or validation in statistical learning is usually based on the ability to modeling for reasons of data interpretation or model prediction accuracy
 in competition. With regard to prediction, it is important to make an error estimate for
 future data. For penalized regressions such as LASSO, Ridge and Elastic-net, the estimation
